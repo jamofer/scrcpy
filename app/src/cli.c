@@ -17,7 +17,7 @@ scrcpy_print_usage(const char *arg0) {
 # define CTRL_OR_CMD "Ctrl"
 #endif
     fprintf(stderr,
-        "Usage: %s [options]\n"
+        "Usage: %s user@host-with-adb [options]\n"
         "\n"
         "Options:\n"
         "\n"
@@ -488,6 +488,15 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
                 // getopt prints the error message on stderr
                 return false;
         }
+    }
+
+    if (optind == (argc - 1)) {
+        opts->ssh_uri = argv[optind++];
+    }
+
+    if (!opts->ssh_uri) {
+        LOGE("No ssh provisioned");
+        return false;
     }
 
     if (!opts->display && !opts->record_filename) {

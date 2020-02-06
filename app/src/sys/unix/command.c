@@ -19,6 +19,40 @@
 #include <unistd.h>
 
 #include "util/log.h"
+#include "util/str_util.h"
+
+
+static int
+build_ssh_cmd(char *cmd, size_t len, const char *const argv[]) {
+    // Windows command-line parsing is WTF:
+    // <http://daviddeley.com/autohotkey/parameters/parameters.htm#WINPASS>
+    // only make it work for this very specific program
+    // (don't handle escaping nor quotes)
+    size_t ret = xstrjoin(cmd, argv, ' ', len);
+    if (ret >= len) {
+        LOGE("Command too long (%" PRIsizet " chars)", len - 1);
+        return -1;
+    }
+    return 0;
+}
+
+enum process_result
+ssh_execute(const char *ssh_uri, const char *const argv[], pid_t *pid) {
+    char ssh_cmd[256];
+    const char* wrapped_args[5];
+
+    build_ssh_cmd(ssh_cmd, sizeof(ssh_cmd), argv);
+
+    wrapped_args[0] = "ssh";
+    wrapped_args[1] = ssh_uri;
+    wrapped_args[2] = ssh_cmd;
+    wrapped_args[3] = NULL;
+
+    printf("%s %s %s\n", wrapped_args[0], wrapped_args[1], wrapped_args[2]);
+
+    return cmd_execute(wrapped_args, pid);
+}
+
 
 enum process_result
 cmd_execute(const char *const argv[], pid_t *pid) {

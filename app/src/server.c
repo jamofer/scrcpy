@@ -17,6 +17,7 @@
 
 #define DEFAULT_SERVER_PATH PREFIX "/share/scrcpy/" SERVER_FILENAME
 #define DEVICE_SERVER_PATH "/data/local/tmp/scrcpy-server.jar"
+#define SSH_SERVER_PATH "/tmp/" SERVER_FILENAME
 
 static const char *
 get_server_path(void) {
@@ -65,58 +66,87 @@ get_server_path(void) {
 #endif
 }
 
+
+static void copy_to_host(const char *ssh_uri, const char *origin, const char *target)
+{
+    process_t process;
+    char ssh_target[128];
+
+    sprintf(ssh_target, "%s:%s", ssh_uri, target);
+
+    const char *cmd_args[] = {
+        "scp",
+        origin,
+        ssh_target,
+        NULL
+    };
+
+    printf("%s %s %s\n", cmd_args[0], cmd_args[1], cmd_args[2]);
+
+    cmd_execute(cmd_args, &process);
+    process_check_success(process, "scp server");
+}
+
+
 static bool
-push_server(const char *serial) {
+push_server(struct server *server) {
     const char *server_path = get_server_path();
     if (!is_regular_file(server_path)) {
         LOGE("'%s' does not exist or is not a regular file\n", server_path);
         return false;
     }
-    process_t process = adb_push(serial, server_path, DEVICE_SERVER_PATH);
+
+    if (server->ssh_uri) {
+        copy_to_host(server->ssh_uri, server_path, SSH_SERVER_PATH);
+    }
+    process_t process = adb_push(server->ssh_uri, server->serial, SSH_SERVER_PATH, DEVICE_SERVER_PATH);
     return process_check_success(process, "adb push");
 }
 
 static bool
-enable_tunnel_reverse(const char *serial, uint16_t local_port) {
-    process_t process = adb_reverse(serial, SOCKET_NAME, local_port);
+enable_tunnel_reverse(const char *ssh_uri, const char *serial, uint16_t local_port) {
+    process_t process = adb_reverse(ssh_uri, serial, SOCKET_NAME, local_port);
     return process_check_success(process, "adb reverse");
 }
 
 static bool
-disable_tunnel_reverse(const char *serial) {
-    process_t process = adb_reverse_remove(serial, SOCKET_NAME);
+disable_tunnel_reverse(const char *ssh_uri, const char *serial) {
+    process_t process = adb_reverse_remove(ssh_uri, serial, SOCKET_NAME);
     return process_check_success(process, "adb reverse --remove");
 }
 
 static bool
-enable_tunnel_forward(const char *serial, uint16_t local_port) {
-    process_t process = adb_forward(serial, local_port, SOCKET_NAME);
+enable_tunnel_forward(const char *ssh_uri, const char *serial, uint16_t local_port) {
+    return false;
+    process_t process = adb_forward(ssh_uri, serial, local_port, SOCKET_NAME);
     return process_check_success(process, "adb forward");
 }
 
 static bool
-disable_tunnel_forward(const char *serial, uint16_t local_port) {
-    process_t process = adb_forward_remove(serial, local_port);
+disable_tunnel_forward(const char *ssh_uri, const char *serial, uint16_t local_port) {
+    return false;
+    process_t process = adb_forward_remove(ssh_uri, serial, local_port);
     return process_check_success(process, "adb forward --remove");
 }
 
+
 static bool
 enable_tunnel(struct server *server) {
-    if (enable_tunnel_reverse(server->serial, server->local_port)) {
+    if (enable_tunnel_reverse(server->ssh_uri, server->serial, server->local_port)) {
         return true;
     }
 
     LOGW("'adb reverse' failed, fallback to 'adb forward'");
     server->tunnel_forward = true;
-    return enable_tunnel_forward(server->serial, server->local_port);
+    return enable_tunnel_forward(server->ssh_uri, server->serial, server->local_port);
 }
 
 static bool
 disable_tunnel(struct server *server) {
     if (server->tunnel_forward) {
-        return disable_tunnel_forward(server->serial, server->local_port);
+        return disable_tunnel_forward(server->ssh_uri, server->serial, server->local_port);
     }
-    return disable_tunnel_reverse(server->serial);
+    return disable_tunnel_reverse(server->ssh_uri, server->serial);
 }
 
 static process_t
@@ -158,7 +188,7 @@ execute_server(struct server *server, const struct server_params *params) {
     //     Port: 5005
     // Then click on "Debug"
 #endif
-    return adb_execute(server->serial, cmd, sizeof(cmd) / sizeof(cmd[0]));
+    return adb_execute(server->ssh_uri, server->serial, cmd, sizeof(cmd) / sizeof(cmd[0]));
 }
 
 #define IPV4_LOCALHOST 0x7F000001
@@ -218,9 +248,49 @@ server_init(struct server *server) {
     *server = (struct server) SERVER_INITIALIZER;
 }
 
+static void enable_ssh_tunnel(const char *ssh_uri, uint16_t port)
+{
+    const char *cmd_args[6];
+    char remote_forward[64];
+    process_t process;
+
+    sprintf(remote_forward, "%d:localhost:%d", port, port);
+
+    cmd_args[0] = "ssh";
+    cmd_args[1] = "-R";
+    cmd_args[2] = remote_forward;
+    cmd_args[3] = ssh_uri;
+    cmd_args[4] = "exit";
+    cmd_args[5] = NULL;
+
+    printf("%s %s %s %s\n", cmd_args[0], cmd_args[1], cmd_args[2], cmd_args[3]);
+
+    cmd_execute(cmd_args, &process);
+}
+
+static void disable_ssh_tunnel(const char *ssh_uri, uint16_t port)
+{
+    const char *cmd_args[7];
+    char remote_forward[64];
+    process_t process;
+
+    sprintf(remote_forward, "%d:localhost:%d", port, port);
+
+    cmd_args[0] = "ssh";
+    cmd_args[1] = "-O";
+    cmd_args[2] = "cancel";
+    cmd_args[3] = "-R";
+    cmd_args[4] = remote_forward;
+    cmd_args[5] = ssh_uri;
+    cmd_args[6] = NULL;
+
+    printf("%s %s %s %s %s %s\n", cmd_args[0], cmd_args[1], cmd_args[2], cmd_args[3], cmd_args[4], cmd_args[5]);
+
+    cmd_execute(cmd_args, &process);
+}
+
 bool
-server_start(struct server *server, const char *serial,
-             const struct server_params *params) {
+server_start(struct server *server, const char *serial, const char *ssh_uri, const struct server_params *params) {
     server->local_port = params->local_port;
 
     if (serial) {
@@ -230,7 +300,11 @@ server_start(struct server *server, const char *serial,
         }
     }
 
-    if (!push_server(serial)) {
+    if (ssh_uri) {
+        server->ssh_uri = SDL_strdup(ssh_uri);
+    }
+
+    if (!push_server(server)) {
         SDL_free(server->serial);
         return false;
     }
@@ -249,7 +323,7 @@ server_start(struct server *server, const char *serial,
         // client can listen before starting the server app, so there is no
         // need to try to connect until the server socket is listening on the
         // device.
-
+        enable_ssh_tunnel(ssh_uri, params->local_port);
         server->server_socket = listen_on_port(params->local_port);
         if (server->server_socket == INVALID_SOCKET) {
             LOGE("Could not listen on port %" PRIu16, params->local_port);
@@ -318,6 +392,9 @@ server_connect_to(struct server *server) {
 
 void
 server_stop(struct server *server) {
+    disable_ssh_tunnel(server->ssh_uri, server->local_port);
+    SDL_free(server->ssh_uri);
+
     if (server->server_socket != INVALID_SOCKET) {
         close_socket(&server->server_socket);
     }

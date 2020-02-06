@@ -20,7 +20,9 @@ src = [
     'src/tiny_xpm.c',
     'src/video_buffer.c',
     'src/util/net.c',
-    'src/util/str_util.c'
+    'src/util/str_util.c',
+    'src/sys/unix/command.c',
+    'src/sys/unix/net.c'
 ]
 
 if not get_option('crossbuild_windows')
@@ -74,15 +76,6 @@ endif
 
 cc = meson.get_compiler('c')
 
-if host_machine.system() == 'windows'
-    src += [ 'src/sys/win/command.c' ]
-    src += [ 'src/sys/win/net.c' ]
-    dependencies += cc.find_library('ws2_32')
-else
-    src += [ 'src/sys/unix/command.c' ]
-    src += [ 'src/sys/unix/net.c' ]
-endif
-
 conf = configuration_data()
 
 # expose the build type
@@ -129,7 +122,7 @@ else
     link_args = []
 endif
 
-executable('scrcpy', src,
+executable('ssh-scrcpy', src,
            dependencies: dependencies,
            include_directories: src_dir,
            install: true,

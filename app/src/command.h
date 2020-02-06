@@ -44,7 +44,11 @@ enum process_result {
 };
 
 enum process_result
+ssh_execute(const char *ssh_uri, const char *const argv[], process_t *process);
+
+enum process_result
 cmd_execute(const char *const argv[], process_t *process);
+
 
 bool
 cmd_terminate(process_t pid);
@@ -53,27 +57,27 @@ bool
 cmd_simple_wait(process_t pid, exit_code_t *exit_code);
 
 process_t
-adb_execute(const char *serial, const char *const adb_cmd[], size_t len);
+adb_execute(const char *ssh_uri, const char *serial, const char *const adb_cmd[], size_t len);
 
 process_t
-adb_forward(const char *serial, uint16_t local_port,
+adb_forward(const char *ssh_uri, const char *serial, uint16_t local_port,
             const char *device_socket_name);
 
 process_t
-adb_forward_remove(const char *serial, uint16_t local_port);
+adb_forward_remove(const char *ssh_uri, const char *serial, uint16_t local_port);
 
 process_t
-adb_reverse(const char *serial, const char *device_socket_name,
+adb_reverse(const char *ssh_uri, const char *serial, const char *device_socket_name,
             uint16_t local_port);
 
 process_t
-adb_reverse_remove(const char *serial, const char *device_socket_name);
+adb_reverse_remove(const char *ssh_uri, const char *serial, const char *device_socket_name);
 
 process_t
-adb_push(const char *serial, const char *local, const char *remote);
+adb_push(const char *ssh_uri, const char *serial, const char *local, const char *remote);
 
 process_t
-adb_install(const char *serial, const char *local);
+adb_install(const char *ssh_uri, const char *serial, const char *local);
 
 // convenience function to wait for a successful process execution
 // automatically log process errors with the provided process name

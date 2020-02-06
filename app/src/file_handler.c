@@ -67,12 +67,12 @@ file_handler_destroy(struct file_handler *file_handler) {
 
 static process_t
 install_apk(const char *serial, const char *file) {
-    return adb_install(serial, file);
+    return adb_install("", serial, file);
 }
 
 static process_t
 push_file(const char *serial, const char *file, const char *push_target) {
-    return adb_push(serial, file, push_target);
+    return adb_push("", serial, file, push_target);
 }
 
 bool

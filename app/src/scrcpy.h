@@ -14,6 +14,7 @@ struct scrcpy_options {
     const char *record_filename;
     const char *window_title;
     const char *push_target;
+    const char *ssh_uri;
     enum recorder_format record_format;
     uint16_t port;
     uint16_t max_size;
@@ -58,6 +59,7 @@ struct scrcpy_options {
     .render_expired_frames = false, \
     .prefer_text = false, \
     .window_borderless = false, \
+    .ssh_uri = NULL, \
 }
 
 bool

@@ -225,12 +225,12 @@ event_loop(bool display, bool control) {
 }
 
 static process_t
-set_show_touches_enabled(const char *serial, bool enabled) {
+set_show_touches_enabled(const char *ssh_uri, const char *serial, bool enabled) {
     const char *value = enabled ? "1" : "0";
     const char *const adb_cmd[] = {
         "shell", "settings", "put", "system", "show_touches", value
     };
-    return adb_execute(serial, adb_cmd, ARRAY_LEN(adb_cmd));
+    return adb_execute(ssh_uri, serial, adb_cmd, ARRAY_LEN(adb_cmd));
 }
 
 static void
@@ -286,7 +286,9 @@ scrcpy(const struct scrcpy_options *options) {
         .max_fps = options->max_fps,
         .control = options->control,
     };
-    if (!server_start(&server, options->serial, &params)) {
+
+    // FixMe: Server* CreateServer(...) Start... DestroyServer
+    if (!server_start(&server, options->serial, options->ssh_uri, &params)) {
         return false;
     }
 
@@ -294,7 +296,7 @@ scrcpy(const struct scrcpy_options *options) {
     bool show_touches_waited;
     if (options->show_touches) {
         LOGI("Enable show_touches");
-        proc_show_touches = set_show_touches_enabled(options->serial, true);
+        proc_show_touches = set_show_touches_enabled(options->ssh_uri, options->serial, true);
         show_touches_waited = false;
     }
 
@@ -480,7 +482,7 @@ end:
             wait_show_touches(proc_show_touches);
         }
         LOGI("Disable show_touches");
-        proc_show_touches = set_show_touches_enabled(options->serial, false);
+        proc_show_touches = set_show_touches_enabled(options->ssh_uri, options->serial, false);
         wait_show_touches(proc_show_touches);
     }
 

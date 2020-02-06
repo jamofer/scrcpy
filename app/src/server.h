@@ -10,6 +10,7 @@
 
 struct server {
     char *serial;
+    char *ssh_uri;
     process_t process;
     socket_t server_socket; // only used if !tunnel_forward
     socket_t video_socket;
@@ -45,8 +46,7 @@ server_init(struct server *server);
 
 // push, enable tunnel et start the server
 bool
-server_start(struct server *server, const char *serial,
-             const struct server_params *params);
+server_start(struct server *server, const char *serial, const char *ssh_uri, const struct server_params *params);
 
 // block until the communication with the server is established
 bool
