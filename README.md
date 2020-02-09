@@ -17,6 +17,15 @@ It focuses on:
 
 [lowlatency]: https://github.com/Genymobile/scrcpy/pull/646
 
+## SSH Fork
+
+This version has been modified in order to use it remotely through ssh to the host where the android device is connected.
+
+It will only work with linux with openssh client.
+
+```
+Usage: ssh-scrcpy user@host
+```
 
 ## Requirements
 
