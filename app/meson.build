@@ -129,7 +129,7 @@ executable('ssh-scrcpy', src,
            c_args: [],
            link_args: link_args)
 
-install_man('scrcpy.1')
+install_man('ssh-scrcpy.1')
 
 
 ### TESTS

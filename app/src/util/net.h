@@ -54,4 +54,6 @@ net_shutdown(socket_t socket, int how);
 bool
 net_close(socket_t socket);
 
+uint16_t net_listening_port(socket_t socket);
+
 #endif

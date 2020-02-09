@@ -115,3 +115,15 @@ bool
 net_shutdown(socket_t socket, int how) {
     return !shutdown(socket, how);
 }
+
+uint16_t net_listening_port(socket_t socket) {
+    struct sockaddr_in sin;
+    socklen_t len = sizeof(sin);
+
+    if (getsockname(socket, (struct sockaddr *)&sin, &len) == -1) {
+        LOGE("Unable to allocate random port for server.");
+        return -1;
+    }
+
+    return ntohs(sin.sin_port);
+}

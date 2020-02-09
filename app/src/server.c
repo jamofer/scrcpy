@@ -19,6 +19,8 @@
 #define DEVICE_SERVER_PATH "/data/local/tmp/scrcpy-server.jar"
 #define SSH_SERVER_PATH "/tmp/" SERVER_FILENAME
 
+#define RANDOM_PORT 0
+
 static const char *
 get_server_path(void) {
     const char *server_path_env = getenv("SCRCPY_SERVER_PATH");
@@ -103,50 +105,17 @@ push_server(struct server *server) {
     return process_check_success(process, "adb push");
 }
 
+
 static bool
-enable_tunnel_reverse(const char *ssh_uri, const char *serial, uint16_t local_port) {
-    process_t process = adb_reverse(ssh_uri, serial, SOCKET_NAME, local_port);
+enable_tunnel(struct server *server) {
+    process_t process = adb_reverse(server->ssh_uri, server->serial, SOCKET_NAME, server->local_port);
     return process_check_success(process, "adb reverse");
 }
 
 static bool
-disable_tunnel_reverse(const char *ssh_uri, const char *serial) {
-    process_t process = adb_reverse_remove(ssh_uri, serial, SOCKET_NAME);
-    return process_check_success(process, "adb reverse --remove");
-}
-
-static bool
-enable_tunnel_forward(const char *ssh_uri, const char *serial, uint16_t local_port) {
-    return false;
-    process_t process = adb_forward(ssh_uri, serial, local_port, SOCKET_NAME);
-    return process_check_success(process, "adb forward");
-}
-
-static bool
-disable_tunnel_forward(const char *ssh_uri, const char *serial, uint16_t local_port) {
-    return false;
-    process_t process = adb_forward_remove(ssh_uri, serial, local_port);
-    return process_check_success(process, "adb forward --remove");
-}
-
-
-static bool
-enable_tunnel(struct server *server) {
-    if (enable_tunnel_reverse(server->ssh_uri, server->serial, server->local_port)) {
-        return true;
-    }
-
-    LOGW("'adb reverse' failed, fallback to 'adb forward'");
-    server->tunnel_forward = true;
-    return enable_tunnel_forward(server->ssh_uri, server->serial, server->local_port);
-}
-
-static bool
 disable_tunnel(struct server *server) {
-    if (server->tunnel_forward) {
-        return disable_tunnel_forward(server->ssh_uri, server->serial, server->local_port);
-    }
-    return disable_tunnel_reverse(server->ssh_uri, server->serial);
+    process_t process = adb_reverse_remove(server->ssh_uri, server->serial, SOCKET_NAME);
+    return process_check_success(process, "adb reverse --remove");
 }
 
 static process_t
@@ -309,37 +278,28 @@ server_start(struct server *server, const char *serial, const char *ssh_uri, con
         return false;
     }
 
+    server->server_socket = listen_on_port(params->local_port);
+    if (server->local_port == RANDOM_PORT) {
+        server->local_port = net_listening_port(server->server_socket);
+    }
+
+    if (server->server_socket == INVALID_SOCKET) {
+        LOGE("Could not listen on port %" PRIu16, server->local_port);
+        disable_tunnel(server);
+        SDL_free(server->serial);
+        return false;
+    }
+
+    enable_ssh_tunnel(ssh_uri, server->local_port);
     if (!enable_tunnel(server)) {
         SDL_free(server->serial);
         return false;
     }
 
-    // if "adb reverse" does not work (e.g. over "adb connect"), it fallbacks to
-    // "adb forward", so the app socket is the client
-    if (!server->tunnel_forward) {
-        // At the application level, the device part is "the server" because it
-        // serves video stream and control. However, at the network level, the
-        // client listens and the server connects to the client. That way, the
-        // client can listen before starting the server app, so there is no
-        // need to try to connect until the server socket is listening on the
-        // device.
-        enable_ssh_tunnel(ssh_uri, params->local_port);
-        server->server_socket = listen_on_port(params->local_port);
-        if (server->server_socket == INVALID_SOCKET) {
-            LOGE("Could not listen on port %" PRIu16, params->local_port);
-            disable_tunnel(server);
-            SDL_free(server->serial);
-            return false;
-        }
-    }
-
-    // server will connect to our server socket
     server->process = execute_server(server, params);
 
     if (server->process == PROCESS_NONE) {
-        if (!server->tunnel_forward) {
-            close_socket(&server->server_socket);
-        }
+        close_socket(&server->server_socket);
         disable_tunnel(server);
         SDL_free(server->serial);
         return false;
