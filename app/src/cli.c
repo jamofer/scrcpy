@@ -494,7 +494,7 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
         opts->ssh_uri = argv[optind++];
     }
 
-    if (!opts->ssh_uri) {
+    if (!opts->ssh_uri && !args->help) {
         LOGE("No ssh provisioned");
         return false;
     }
