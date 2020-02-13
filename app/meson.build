@@ -93,7 +93,7 @@ conf.set('PORTABLE', get_option('portable'))
 
 # the default client TCP port for the "adb reverse" tunnel
 # overridden by option --port
-conf.set('DEFAULT_LOCAL_PORT', '27183')
+conf.set('DEFAULT_LOCAL_PORT', '0')
 
 # the default max video size for both dimensions, in pixels
 # overridden by option --max-size
