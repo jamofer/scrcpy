@@ -2,7 +2,16 @@
 
 This version has been modified in order to use it remotely through ssh to the host where the android device is connected.
 
-It will only work with linux with openssh client.
+It will only work with openssh client available in `$PATH` and ssh sessions persistence enabled:
+```bash
+#Example of /etc/ssh/ssh_config.sh
+Host *
+ControlMaster auto
+ControlPath /tmp/%u-%r@%h-%p
+ControlPersist 6000000
+ServerAliveInterval 1
+ServerAliveCountMax 2
+```
 
 ```
 Usage: ssh-scrcpy user@host
